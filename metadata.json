@@ -1,0 +1,6 @@
+{
+  "name": "FontNova Keyboard",
+  "description": "Offline Unicode Font Keyboard with Stylish Text and Stylish Numbers Support.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
