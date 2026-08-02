@@ -2,9 +2,15 @@ package com.example.keyboard
 
 import android.inputmethodservice.InputMethodService
 import android.view.View
-import android.view.inputmethod.InputConnection
+import android.view.inputmethod.EditorInfo
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.ComposeView
+import androidx.compose.ui.platform.ViewCompositionStrategy
+import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleOwner
+import androidx.lifecycle.LifecycleRegistry
 import androidx.lifecycle.ViewModelStore
 import androidx.lifecycle.ViewModelStoreOwner
 import androidx.lifecycle.setViewTreeLifecycleOwner
@@ -21,22 +27,31 @@ class FontNovaInputMethodService : InputMethodService(),
     SavedStateRegistryOwner {
 
     override val viewModelStore = ViewModelStore()
+    private val lifecycleRegistry = LifecycleRegistry(this)
     private val savedStateRegistryController = SavedStateRegistryController.create(this)
 
-    override val lifecycle = androidx.lifecycle.LifecycleRegistry(this)
-    override val savedStateRegistry: SavedStateRegistry get() = savedStateRegistryController.savedStateRegistry
+    override val lifecycle: Lifecycle get() = lifecycleRegistry
+    override val savedStateRegistry: SavedStateRegistry
+        get() = savedStateRegistryController.savedStateRegistry
+
+    // mutableStateOf so font changes trigger recomposition
+    private var activeFontId by mutableStateOf("bold_sans")
 
     override fun onCreate() {
         super.onCreate()
         savedStateRegistryController.performRestore(null)
-        lifecycle.handleLifecycleEvent(androidx.lifecycle.Lifecycle.Event.ON_CREATE)
+        lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_CREATE)
     }
 
     override fun onCreateInputView(): View {
-        lifecycle.handleLifecycleEvent(androidx.lifecycle.Lifecycle.Event.ON_START)
-        lifecycle.handleLifecycleEvent(androidx.lifecycle.Lifecycle.Event.ON_RESUME)
+        lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_START)
+        lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_RESUME)
 
-        val composeView = ComposeView(this).apply {
+        return ComposeView(this).apply {
+            // CRASH FIX: Without this, Compose disposes at wrong time in IME
+            setViewCompositionStrategy(
+                ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed
+            )
             setViewTreeLifecycleOwner(this@FontNovaInputMethodService)
             setViewTreeViewModelStoreOwner(this@FontNovaInputMethodService)
             setViewTreeSavedStateRegistryOwner(this@FontNovaInputMethodService)
@@ -44,8 +59,8 @@ class FontNovaInputMethodService : InputMethodService(),
             setContent {
                 MyApplicationTheme {
                     FontNovaKeyboardView(
-                        activeFontId = "bold_sans",
-                        onFontSelected = { /* Saved to prefs */ },
+                        activeFontId = activeFontId,
+                        onFontSelected = { id -> activeFontId = id },
                         onKeyTyped = { text ->
                             currentInputConnection?.commitText(text, 1)
                         },
@@ -53,12 +68,20 @@ class FontNovaInputMethodService : InputMethodService(),
                             currentInputConnection?.deleteSurroundingText(1, 0)
                         },
                         onEnter = {
-                            currentInputConnection?.sendKeyEvent(
-                                android.view.KeyEvent(
-                                    android.view.KeyEvent.ACTION_DOWN,
-                                    android.view.KeyEvent.KEYCODE_ENTER
+                            currentInputConnection?.let { ic ->
+                                ic.sendKeyEvent(
+                                    android.view.KeyEvent(
+                                        android.view.KeyEvent.ACTION_DOWN,
+                                        android.view.KeyEvent.KEYCODE_ENTER
+                                    )
                                 )
-                            )
+                                ic.sendKeyEvent(
+                                    android.view.KeyEvent(
+                                        android.view.KeyEvent.ACTION_UP,
+                                        android.view.KeyEvent.KEYCODE_ENTER
+                                    )
+                                )
+                            }
                         },
                         onSpace = {
                             currentInputConnection?.commitText(" ", 1)
@@ -83,12 +106,25 @@ class FontNovaInputMethodService : InputMethodService(),
                 }
             }
         }
-        return composeView
+    }
+
+    override fun onStartInputView(editorInfo: EditorInfo?, restarting: Boolean) {
+        super.onStartInputView(editorInfo, restarting)
+        if (!lifecycleRegistry.currentState.isAtLeast(Lifecycle.State.RESUMED)) {
+            lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_RESUME)
+        }
+    }
+
+    override fun onFinishInputView(finishingInput: Boolean) {
+        super.onFinishInputView(finishingInput)
+        if (lifecycleRegistry.currentState.isAtLeast(Lifecycle.State.RESUMED)) {
+            lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_PAUSE)
+        }
     }
 
     override fun onDestroy() {
         super.onDestroy()
-        lifecycle.handleLifecycleEvent(androidx.lifecycle.Lifecycle.Event.ON_DESTROY)
+        lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_DESTROY)
         viewModelStore.clear()
     }
 }
