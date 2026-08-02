@@ -26,10 +26,11 @@ jobs:
         with:
           java-version: '17'
           distribution: 'temurin'
-          cache: 'gradle'
 
-      - name: Grant execute permission for gradlew
-        run: chmod +x ./gradlew
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.14'
 
       - name: Create debug keystore
         run: |
@@ -44,10 +45,10 @@ jobs:
             -keypass android
 
       - name: Create .env file
-        run: cp .env.example .env
+        run: echo "GEMINI_API_KEY=placeholder" > .env
 
       - name: Build Debug APK
-        run: ./gradlew assembleDebug --no-daemon --stacktrace
+        run: gradle assembleDebug --no-daemon --stacktrace
 
       - name: Upload Debug APK
         uses: actions/upload-artifact@v4
