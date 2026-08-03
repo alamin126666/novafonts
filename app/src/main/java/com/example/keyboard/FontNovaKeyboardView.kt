@@ -94,6 +94,14 @@ fun FontNovaKeyboardView(
     onSpace: () -> Unit,
     onCursorLeft: () -> Unit = {},
     onCursorRight: () -> Unit = {},
+    // Legacy params kept for API compatibility (not used in new dark theme)
+    vibrationEnabled: Boolean = true,
+    keySoundEnabled: Boolean = true,
+    popupPreviewEnabled: Boolean = false,
+    themePrimaryColor: Color = KbTheme.accent,
+    themeBackgroundColor: Color = KbTheme.bg,
+    themeKeyColor: Color = KbTheme.keyBg,
+    themeTextColor: Color = KbTheme.keyText,
     modifier: Modifier = Modifier
 ) {
     val context      = LocalContext.current
